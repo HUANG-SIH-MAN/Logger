@@ -1,4 +1,10 @@
 export abstract class Layout {
+  static createLayout(layout: string = "") {
+    if (layout === "standard") {
+      return new StandardLayout();
+    }
+    return;
+  }
   public abstract formatMessage(
     message: string,
     logger_name: string,

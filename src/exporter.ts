@@ -1,6 +1,28 @@
 import fs from "fs";
 
 export abstract class Exporter {
+  static createExporter(config?: { [key: string]: any }) {
+    if (!config) return;
+
+    if (config.type === "console") {
+      return new ConsoleExporter();
+    }
+
+    if (config.type === "file") {
+      return new FileExporter(config.fileName);
+    }
+
+    if (config.type === "composite") {
+      const children_exporter = config.children
+        .map((children_config: { [key: string]: any } | undefined) =>
+          Exporter.createExporter(children_config)
+        )
+        .filter((item: any) => item);
+      return new CompositeExporter(...children_exporter);
+    }
+
+    return;
+  }
   public abstract exportLog(message: string): void;
 }
 

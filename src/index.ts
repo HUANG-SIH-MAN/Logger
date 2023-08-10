@@ -1,6 +1,12 @@
-import { CompositeExporter, ConsoleExporter, FileExporter } from "./exporter";
-import { StandardLayout } from "./layout";
+import {
+  CompositeExporter,
+  ConsoleExporter,
+  FileExporter,
+  Exporter,
+} from "./exporter";
+import { StandardLayout, Layout } from "./layout";
 import { Level, Logger } from "./logger";
+import * as fs from "fs-extra";
 
 const logger_map: { [name: string]: Logger } = {};
 
@@ -14,36 +20,82 @@ function getLogger(name: string) {
   return logger_map[name];
 }
 
-const root = new Logger(
-  null,
-  undefined,
-  Level.DEBUG,
-  new StandardLayout(),
-  new ConsoleExporter()
-);
+function declareLoggersByFile(fine_name: string) {
+  const config: { [key: string]: Object } = JSON.parse(
+    fs.readFileSync(fine_name, "utf-8")
+  );
+  createLogger("root", Object.values(config)[0]);
+}
 
-const gameLogger = new Logger(
-  root,
-  "app.game",
-  Level.INFO,
-  undefined,
-  new CompositeExporter(
-    new ConsoleExporter(),
-    new CompositeExporter(
-      new FileExporter("game.log"),
-      new FileExporter("game.backup.log")
-    )
-  )
-);
+function createLogger(
+  logger_name: string,
+  config: { [key: string]: any },
+  parent: Logger | null = null
+) {
+  const level_threshold = config["levelThreshold"]
+    ? Level[config["levelThreshold"] as keyof typeof Level]
+    : undefined;
+  const layout = Layout.createLayout(config["layout"]);
+  const exporter = Exporter.createExporter(config["exporter"]);
 
-const aiLogger = new Logger(
-  gameLogger,
-  "app.game.ai",
-  Level.TRACE,
-  new StandardLayout()
-);
+  const logger = new Logger(
+    parent,
+    logger_name,
+    level_threshold,
+    layout,
+    exporter
+  );
+  declareLoggers(logger);
 
-declareLoggers(root, gameLogger, aiLogger);
+  const children_logger_name = Object.keys(config).filter(
+    (key) => key !== "levelThreshold" && key !== "layout" && key !== "exporter"
+  )[0];
+
+  if (children_logger_name) {
+    return createLogger(
+      children_logger_name,
+      config[children_logger_name],
+      logger
+    );
+  }
+
+  return;
+}
+
+// TODO: 用json檔案設定logger
+declareLoggersByFile("logger.json");
+
+// TODO: 直接宣告logger
+// const root = new Logger(
+//   null,
+//   undefined,
+//   Level.DEBUG,
+//   new StandardLayout(),
+//   new ConsoleExporter()
+// );
+
+// const gameLogger = new Logger(
+//   root,
+//   "app.game",
+//   Level.INFO,
+//   undefined,
+//   new CompositeExporter(
+//     new ConsoleExporter(),
+//     new CompositeExporter(
+//       new FileExporter("game.log"),
+//       new FileExporter("game.backup.log")
+//     )
+//   )
+// );
+
+// const aiLogger = new Logger(
+//   gameLogger,
+//   "app.game.ai",
+//   Level.TRACE,
+//   new StandardLayout()
+// );
+
+// declareLoggers(root, gameLogger, aiLogger);
 
 class Game {
   private log: Logger = getLogger("app.game");
@@ -69,7 +121,6 @@ class AI {
   private log: Logger = getLogger("app.game.ai");
   private name: string;
 
-  // constructor
   constructor(name: string) {
     this.name = name;
   }
